@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Car } from "@/types";
 import { useRouter } from "next/navigation";
+import { useLiff } from "@/components/LiffProvider"; // ✅ 1. เรียกใช้ LIFF Provider
 import {
   Calendar,
   Clock,
@@ -11,30 +12,35 @@ import {
   FileText,
   CheckCircle,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 export default function BookingPage() {
   const router = useRouter();
+  const { dbUser, isLoggedIn } = useLiff(); // ✅ 2. ดึงข้อมูล User จริงออกมา
 
-  // State สำหรับ Form
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [purpose, setPurpose] = useState("");
   const [destination, setDestination] = useState("");
 
-  // State สำหรับการทำงาน
   const [availableCars, setAvailableCars] = useState<Car[]>([]);
   const [selectedCar, setSelectedCar] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // UseEffect: ทำงานเมื่อ startTime หรือ endTime เปลี่ยนแปลง
+  // เช็คว่า User Login หรือยัง
+  useEffect(() => {
+    if (isLoggedIn && !dbUser) {
+      // ถ้า Login LINE แล้ว แต่ไม่มีข้อมูลใน DB (ยังไม่ลงทะเบียน) ให้กลับหน้าแรก
+      router.push("/");
+    }
+  }, [isLoggedIn, dbUser, router]);
+
   useEffect(() => {
     async function checkAvailability() {
       if (!startTime || !endTime) return;
-
-      // ตรวจสอบว่าเวลาถูกต้อง (จบต้องหลังเริ่ม)
       if (new Date(startTime) >= new Date(endTime)) {
         setError("เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น");
         setAvailableCars([]);
@@ -46,7 +52,6 @@ export default function BookingPage() {
       setSelectedCar(null);
 
       try {
-        // เรียกใช้ฟังก์ชัน RPC: get_available_cars
         const { data, error } = await supabase.rpc("get_available_cars", {
           search_start: new Date(startTime).toISOString(),
           search_end: new Date(endTime).toISOString(),
@@ -63,22 +68,24 @@ export default function BookingPage() {
     }
 
     checkAvailability();
-  }, [startTime, endTime]); // Dependency ครบถ้วนแล้ว
+  }, [startTime, endTime]);
 
-  // ฟังก์ชันบันทึกการจอง
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedCar || !startTime || !endTime) return;
 
+    // ✅ ป้องกันกรณี User ยังโหลดไม่เสร็จ
+    if (!dbUser) {
+      alert("กรุณารอสักครู่ กำลังโหลดข้อมูลผู้ใช้...");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // TODO: เปลี่ยนเป็น User ID จริงจาก Auth Context ในอนาคต
-      // ใช้ ID ที่คุณสร้างใน Table users
-      const MOCK_USER_ID = "0ad487b5-a7b0-4bc5-9aab-00925e74436a"; // <-- เปลี่ยนตรงนี้ให้ตรงกับ UUID ของคุณ
-
+      // ✅ 3. ใช้ dbUser.id ของจริงแทน Mock ID
       const { error } = await supabase.from("bookings").insert({
         car_id: selectedCar,
-        user_id: MOCK_USER_ID,
+        user_id: dbUser.id, // <--- ตรงนี้คือจุดเปลี่ยนสำคัญ!
         start_time: new Date(startTime).toISOString(),
         end_time: new Date(endTime).toISOString(),
         purpose,
@@ -88,8 +95,8 @@ export default function BookingPage() {
 
       if (error) throw error;
 
-      alert("จองรถสำเร็จ! กรุณารอการอนุมัติ");
-      router.push("/");
+      alert("✅ จองรถสำเร็จ! กรุณารอการอนุมัติ");
+      router.push("/my-bookings"); // จองเสร็จไปดูรายการของฉันเลย
     } catch (err: unknown) {
       console.error(err);
       if (err instanceof Error) {
@@ -102,6 +109,15 @@ export default function BookingPage() {
     }
   }
 
+  // Loading State ถ้ายังไม่มี User
+  if (!dbUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600 w-8 h-8" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 font-sans text-gray-900">
       <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6">
@@ -109,8 +125,14 @@ export default function BookingPage() {
           <Calendar className="text-blue-600 w-8 h-8" /> จองรถใช้งาน
         </h1>
 
+        {/* แสดงชื่อคนจองหน่อย เพื่อความชัวร์ */}
+        <div className="mb-6 p-3 bg-blue-50 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+          <CheckCircle className="w-4 h-4" />
+          ผู้จอง: <strong>{dbUser.full_name}</strong> ({dbUser.department})
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* ส่วนที่ 1: เลือกเวลา */}
+          {/* ... (ส่วน Form เลือกเวลา เหมือนเดิมเป๊ะ ไม่ต้องแก้) ... */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -144,14 +166,12 @@ export default function BookingPage() {
             </div>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="bg-red-50 text-red-700 p-3 rounded-lg flex items-center gap-2 text-sm border border-red-200">
               <AlertCircle className="w-5 h-5" /> {error}
             </div>
           )}
 
-          {/* ส่วนที่ 2: เลือกรถ */}
           {startTime && endTime && !error && (
             <div className="border-t border-gray-200 pt-6">
               <label className="block text-base font-semibold text-gray-800 mb-3">
@@ -200,7 +220,6 @@ export default function BookingPage() {
             </div>
           )}
 
-          {/* ส่วนที่ 3: รายละเอียดการเดินทาง */}
           {selectedCar && (
             <div className="border-t border-gray-200 pt-6 space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div>
