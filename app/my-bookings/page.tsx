@@ -13,6 +13,7 @@ import {
   Camera,
   X,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
 
 export default function MyBookingsPage() {
@@ -66,6 +67,38 @@ export default function MyBookingsPage() {
     setIsModalOpen(true);
   }
 
+  // ฟังก์ชันช่วยอัปโหลดรูปภาพ
+  async function uploadImage(
+    file: File,
+    bookingId: string,
+    type: "start" | "end",
+  ): Promise<string | null> {
+    try {
+      // 1. สร้างชื่อไฟล์ไม่ซ้ำกัน: bookingID_type_timestamp.ext
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${bookingId}_${type}_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // 2. อัปโหลด
+      const { error: uploadError } = await supabase.storage
+        .from("trip_images") // ชื่อ Bucket ที่เราสร้าง
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // 3. ขอ Public URL
+      const { data } = supabase.storage
+        .from("trip_images")
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (error) {
+      console.error("Upload Error:", error);
+      alert("ไม่สามารถอัปโหลดรูปภาพได้");
+      return null;
+    }
+  }
+
   // 3. จัดการ Submit (รวม Start และ End)
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,7 +107,12 @@ export default function MyBookingsPage() {
     setSubmitting(true);
 
     try {
-      const fakeImageUrl = imageFile ? `mock_url_${imageFile.name}` : null;
+      // Step 1: อัปโหลดรูป (ถ้ามี)
+      let imageUrl = null;
+      if (imageFile) {
+        imageUrl = await uploadImage(imageFile, selectedBooking.id, modalType);
+        if (!imageUrl) throw new Error("Image upload failed");
+      }
 
       if (modalType === "start") {
         // --- Logic เริ่มเดินทาง ---
@@ -82,7 +120,7 @@ export default function MyBookingsPage() {
           booking_id: selectedBooking.id,
           start_mileage: parseInt(mileage),
           start_fuel_level: fuelLevel,
-          start_image_url: fakeImageUrl,
+          start_image_url: imageUrl, // เก็บ URL จริงๆ
         });
         if (logError) throw logError;
 
@@ -103,7 +141,7 @@ export default function MyBookingsPage() {
           .update({
             end_mileage: parseInt(mileage),
             end_fuel_level: fuelLevel,
-            end_image_url: fakeImageUrl,
+            end_image_url: imageUrl, // เก็บ URL จริงๆ
             end_time: new Date().toISOString(),
           })
           .eq("booking_id", selectedBooking.id);
@@ -141,8 +179,8 @@ export default function MyBookingsPage() {
 
       <div className="p-4 space-y-4">
         {loading ? (
-          <div className="text-center text-gray-600 mt-10 animate-pulse font-medium">
-            กำลังโหลดข้อมูล...
+          <div className="text-center text-gray-600 mt-10 animate-pulse font-medium flex justify-center items-center gap-2">
+            <Loader2 className="animate-spin w-5 h-5" /> กำลังโหลดข้อมูล...
           </div>
         ) : bookings.length === 0 ? (
           <div className="text-center text-gray-500 mt-10">ไม่มีรายการจอง</div>
@@ -320,7 +358,7 @@ export default function MyBookingsPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className={`w-full py-4 rounded-xl font-bold text-white text-xl shadow-lg transition-all active:scale-95
+                className={`w-full py-4 rounded-xl font-bold text-white text-xl shadow-lg transition-all active:scale-95 flex justify-center items-center gap-2
                   ${
                     modalType === "start"
                       ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
@@ -329,7 +367,13 @@ export default function MyBookingsPage() {
                   ${submitting ? "opacity-70 cursor-wait" : ""}
                 `}
               >
-                {submitting ? "กำลังบันทึก..." : "ยืนยันข้อมูล"}
+                {submitting ? (
+                  <>
+                    <Loader2 className="animate-spin w-6 h-6" /> กำลังอัปโหลด...
+                  </>
+                ) : (
+                  "ยืนยันข้อมูล"
+                )}
               </button>
             </form>
           </div>
