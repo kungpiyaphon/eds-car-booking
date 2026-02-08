@@ -8,7 +8,7 @@ export type Car = {
   seat_capacity: number;
   current_mileage: number;
   image_url: string | null;
-  status: 'available' | 'maintenance' | 'in_use';
+  status: "available" | "maintenance" | "in_use";
   created_at: string;
 };
 
@@ -18,7 +18,7 @@ export type User = {
   full_name: string;
   email: string;
   department: string;
-  role: 'user' | 'admin' | 'approver';
+  role: "user" | "admin" | "approver";
   line_user_id: string | null;
 };
 
@@ -30,7 +30,11 @@ export type Booking = {
   end_time: string;
   purpose: string;
   destination: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed';
+  status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
   approver_comment?: string;
   created_at: string;
+
+  // เป็น Option ? เพราะตอน Insert เราไม่ได้ใช้
+  cars?: Car;
+  users?: User;
 };
