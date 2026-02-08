@@ -74,7 +74,7 @@ export default function BookingPage() {
     try {
       // TODO: เปลี่ยนเป็น User ID จริงจาก Auth Context ในอนาคต
       // ใช้ ID ที่คุณสร้างใน Table users
-      const MOCK_USER_ID = "e82b7c6a-6534-4b91-8d2a-8c3b9b9c9c9c"; // <-- เปลี่ยนตรงนี้ให้ตรงกับ UUID ของคุณ
+      const MOCK_USER_ID = "0ad487b5-a7b0-4bc5-9aab-00925e74436a"; // <-- เปลี่ยนตรงนี้ให้ตรงกับ UUID ของคุณ
 
       const { error } = await supabase.from("bookings").insert({
         car_id: selectedCar,
