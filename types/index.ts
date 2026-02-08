@@ -22,4 +22,15 @@ export type User = {
   line_user_id: string | null;
 };
 
-// เดี๋ยวเราจะมาเพิ่ม Booking Type ทีหลังเมื่อถึงขั้นตอนนั้น
+export type Booking = {
+  id: string;
+  user_id: string;
+  car_id: string;
+  start_time: string;
+  end_time: string;
+  purpose: string;
+  destination: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed';
+  approver_comment?: string;
+  created_at: string;
+};
