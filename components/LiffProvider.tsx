@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import liff from "@line/liff";
+import { supabase } from "@/lib/supabase"; // ✅ เพิ่ม: import supabase
 
-// 1. กำหนด Type ให้ชัดเจน (แก้ปัญหา Unexpected any)
+// 1. กำหนด Type ให้ชัดเจน
 interface LiffProfile {
   userId: string;
   displayName: string;
@@ -11,13 +12,24 @@ interface LiffProfile {
   statusMessage?: string;
 }
 
+// ✅ เพิ่ม: Type ของ User ใน DB
+type DbUser = {
+  id: string;
+  employee_id: string;
+  full_name: string;
+  role: string;
+  department: string;
+};
+
 type LiffContextType = {
   liffObject: typeof liff | null;
   profile: LiffProfile | null;
   isLoggedIn: boolean;
   userId: string | null;
+  dbUser: DbUser | null; // ✅ เพิ่ม: ตัวแปรเก็บข้อมูลพนักงานจริง
   login: () => void;
   logout: () => void;
+  refreshUser: () => Promise<void>; // ✅ เพิ่ม: ฟังก์ชันรีโหลดข้อมูล (ใช้ตอนผูกบัญชีเสร็จ)
 };
 
 const LiffContext = createContext<LiffContextType>({
@@ -25,18 +37,39 @@ const LiffContext = createContext<LiffContextType>({
   profile: null,
   isLoggedIn: false,
   userId: null,
+  dbUser: null,
   login: () => {},
   logout: () => {},
+  refreshUser: async () => {},
 });
 
 export const useLiff = () => useContext(LiffContext);
 
 export function LiffProvider({ children }: { children: React.ReactNode }) {
-  // 2. ใช้ Type ที่เรากำหนดข้างบน แทนการใช้ any
   const [liffObject, setLiffObject] = useState<typeof liff | null>(null);
   const [profile, setProfile] = useState<LiffProfile | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [dbUser, setDbUser] = useState<DbUser | null>(null); // ✅ State สำหรับ DB User
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // ✅ ฟังก์ชันดึงข้อมูล User จาก Supabase ด้วย LINE ID
+  const fetchDbUser = async (lineUserId: string) => {
+    try {
+      const { data } = await supabase
+        .from("users")
+        .select("*")
+        .eq("line_user_id", lineUserId)
+        .single();
+
+      if (data) {
+        setDbUser(data);
+      } else {
+        setDbUser(null); // ไม่พบข้อมูล (ต้องให้ User ลงทะเบียนผูกบัญชี)
+      }
+    } catch (error) {
+      console.error("Error fetching DB user:", error);
+    }
+  };
 
   useEffect(() => {
     async function initLiff() {
@@ -50,20 +83,21 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
         await liff.init({ liffId });
         setLiffObject(liff);
 
-        // 3. ย้าย Logic การ Login มาไว้ในนี้เลย (แก้ปัญหา handleLoginSuccess is accessed before initialization)
         if (liff.isLoggedIn()) {
           setIsLoggedIn(true);
           try {
             const userProfile = await liff.getProfile();
             setProfile(userProfile);
 
-            // ดึง userId (sub) จาก ID Token จะชัวร์กว่า
+            let currentUserId = userProfile.userId;
             const context = liff.getContext();
             if (context && context.userId) {
-              setUserId(context.userId);
-            } else {
-              setUserId(userProfile.userId);
+              currentUserId = context.userId;
             }
+            setUserId(currentUserId);
+
+            // ✅ เมื่อได้ LINE ID แล้ว ให้ไปดึงข้อมูลพนักงานทันที
+            await fetchDbUser(currentUserId);
           } catch (error) {
             console.error("LIFF Get Profile Error", error);
           }
@@ -87,13 +121,27 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       setIsLoggedIn(false);
       setProfile(null);
       setUserId(null);
-      window.location.reload(); // รีโหลดหน้าเพื่อเคลียร์ state
+      setDbUser(null);
+      window.location.reload();
     }
+  };
+
+  const refreshUser = async () => {
+    if (userId) await fetchDbUser(userId);
   };
 
   return (
     <LiffContext.Provider
-      value={{ liffObject, profile, isLoggedIn, userId, login, logout }}
+      value={{
+        liffObject,
+        profile,
+        isLoggedIn,
+        userId,
+        dbUser,
+        login,
+        logout,
+        refreshUser,
+      }}
     >
       {children}
     </LiffContext.Provider>
