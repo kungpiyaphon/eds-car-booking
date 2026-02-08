@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Booking } from "@/types";
 import { useLiff } from "@/components/LiffProvider";
@@ -17,8 +17,8 @@ export default function MyBookingsPage() {
   const [modalType, setModalType] = useState<"start" | "end">("start");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
-  // แยกฟังก์ชันดึงข้อมูลออกมา เพื่อให้เรียกซ้ำได้ง่าย
-  async function fetchMyBookings() {
+  // ✅ ใช้ useCallback เพื่อจดจำฟังก์ชันไว้ ไม่ให้สร้างใหม่ทุกครั้งที่ render
+  const fetchMyBookings = useCallback(async () => {
     if (!dbUser) return;
     try {
       setLoading(true);
@@ -35,12 +35,12 @@ export default function MyBookingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [dbUser]); // ฟังก์ชันนี้จะเปลี่ยนเมื่อ dbUser เปลี่ยนเท่านั้น
 
   // เรียกครั้งแรก
   useEffect(() => {
     fetchMyBookings();
-  }, [dbUser]);
+  }, [fetchMyBookings]); // ✅ ใส่ fetchMyBookings เป็น dependency ได้แล้ว
 
   // ฟังก์ชันเปิด Modal
   function handleOpenModal(booking: Booking, type: "start" | "end") {
