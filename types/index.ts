@@ -30,7 +30,7 @@ export type Booking = {
   end_time: string;
   purpose: string;
   destination: string;
-  status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
+  status: "pending" | "approved" | "rejected" | "cancelled" | "completed" | "in_use";
   approver_comment?: string;
   created_at: string;
 
